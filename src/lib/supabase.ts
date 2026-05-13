@@ -4,6 +4,7 @@ import type { StoredAudit, StoredLead, AuditResult, ToolEntry, UseCase, SavingsC
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAdminKey = supabaseServiceKey ?? supabaseAnonKey;
 
 // Public client - for reading shared audits
 export const supabase =
@@ -11,8 +12,8 @@ export const supabase =
 
 // Server-only client - for writes (used only in API routes)
 export const supabaseAdmin =
-  supabaseUrl && (supabaseServiceKey ?? supabaseAnonKey)
-    ? createClient(supabaseUrl, supabaseServiceKey ?? supabaseAnonKey, {
+  supabaseUrl && supabaseAdminKey
+    ? createClient(supabaseUrl, supabaseAdminKey, {
         auth: { persistSession: false },
       })
     : null;

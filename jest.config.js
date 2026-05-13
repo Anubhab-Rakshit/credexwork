@@ -1,12 +1,11 @@
-import type { Config } from 'jest';
-
-const config: Config = {
+/** @type {import('jest').Config} */
+module.exports = {
   preset: 'ts-jest',
   testEnvironment: 'node',
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
   },
-  testPathPattern: ['__tests__'],
+  testMatch: ['**/__tests__/**/*.test.ts', '**/__tests__/**/*.test.tsx'],
   coverageDirectory: 'coverage',
   collectCoverageFrom: [
     'src/lib/auditEngine.ts',
@@ -17,5 +16,3 @@ const config: Config = {
     '^.+\\.tsx?$': ['ts-jest', { tsconfig: { jsx: 'react' } }],
   },
 };
-
-export default config;

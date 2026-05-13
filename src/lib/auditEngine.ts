@@ -95,8 +95,8 @@ function auditSingleTool(
     }
   }
 
-  // Generic check: discounts via Credex credits when savings are otherwise zero
-  if (recommendation.action === 'already_optimal' && supportsCredex && monthlySpend > 0) {
+  // Generic check: Credex credits for high-spend lines only
+  if (recommendation.action === 'already_optimal' && supportsCredex && monthlySpend >= 500) {
     const credexSavings = Math.round(monthlySpend * CREDEX_DISCOUNT);
     if (credexSavings > 0) {
       recommendation = {
@@ -138,36 +138,57 @@ function auditCursor(
 ): ToolRecommendation {
   const expectedSpend = getExpectedSpend('cursor', plan, seats);
 
-  // Rule 1: High tier Pro+ or Ultra for non-power users
-  if ((plan === 'pro_plus' || plan === 'ultra') && useCase !== 'coding') {
-    const proCost = seats * 20;
+  if (plan === 'business' && seats <= 5) {
+    const savings = seats * 20;
     return {
       action: 'downgrade_plan',
-      reason: `Cursor Pro ($20/seat) includes ample credits for non-coding workflows. Your current ${plan} tier is optimized for 8+ hours of daily agentic coding which doesn't match your profile.`,
+      reason: `With ${seats} seats, Cursor Pro ($20/seat) provides identical coding capability to Business; the $20/seat premium for admin controls and SSO is only justified for larger teams or compliance-heavy orgs.`,
       suggestedPlan: 'Pro',
-      monthlySavings: monthlySpend - proCost,
+      monthlySavings: savings,
       currentMonthlySpend: monthlySpend,
-      recommendedMonthlySpend: proCost,
+      recommendedMonthlySpend: seats * 20,
     };
   }
 
-  // Rule 2: Coding tool overlap
   const hasCopilot = allTools.some((t) => t.tool === 'github_copilot');
   const hasWindsurf = allTools.some((t) => t.tool === 'windsurf');
-  if ((hasCopilot || hasWindsurf) && (plan === 'pro' || plan === 'business')) {
-    const cheaperTool = hasWindsurf ? 'Windsurf Pro ($20/seat)' : 'GitHub Copilot ($10/seat)';
-    const cheaperCost = hasWindsurf ? 20 * seats : 10 * seats;
+  if ((hasCopilot || hasWindsurf) && plan === 'pro') {
+    const cheaperTool = hasWindsurf
+      ? 'Windsurf Pro ($15/seat)'
+      : 'GitHub Copilot Individual ($10/seat)';
+    const cheaperCost = hasWindsurf ? 15 * seats : 10 * seats;
     const savings = monthlySpend - cheaperCost;
     if (savings > 0) {
       return {
         action: 'consolidate',
-        reason: `Duplicate agentic IDE spend detected. Consolidating to ${cheaperTool} alone cuts monthly spend by $${savings} without losing frontier model access.`,
+        reason: `You're paying for two coding AI tools. Consolidating to ${cheaperTool} alone would cut this spend by $${savings}/mo while maintaining inline autocomplete coverage.`,
         suggestedTool: hasWindsurf ? 'windsurf' : 'github_copilot',
         monthlySavings: savings,
         currentMonthlySpend: monthlySpend,
         recommendedMonthlySpend: cheaperCost,
       };
     }
+  }
+
+  if (useCase === 'writing' || useCase === 'research') {
+    return {
+      action: 'switch_tool',
+      reason: `Cursor is optimized for code generation. For ${useCase} workflows, Claude Pro ($20/mo) or ChatGPT Plus ($20/mo) provide better value and long-form output quality.`,
+      suggestedTool: 'claude',
+      monthlySavings: Math.max(0, monthlySpend - 20 * seats),
+      currentMonthlySpend: monthlySpend,
+      recommendedMonthlySpend: 20 * seats,
+    };
+  }
+
+  if (monthlySpend > expectedSpend * 1.1 && expectedSpend > 0) {
+    return {
+      action: 'use_credits',
+      reason: `You're paying $${monthlySpend}/mo for Cursor ${plan} but the standard rate for ${seats} seat(s) is $${expectedSpend}/mo. Credex credits provide the same licenses at ~28% below retail.`,
+      monthlySavings: Math.round(monthlySpend * CREDEX_DISCOUNT),
+      currentMonthlySpend: monthlySpend,
+      recommendedMonthlySpend: Math.round(monthlySpend * (1 - CREDEX_DISCOUNT)),
+    };
   }
 
   return alreadyOptimal(monthlySpend);
@@ -180,13 +201,13 @@ function auditGitHubCopilot(
   seats: number,
   _teamSize: number,
   useCase: UseCase,
-  _allTools: ToolEntry[]
+  allTools: ToolEntry[]
 ): ToolRecommendation {
-  if (plan === 'enterprise' && seats < 30) {
-    const savings = seats * (39 - 19);
+  if (plan === 'enterprise' && seats < 50) {
+    const savings = seats * 20;
     return {
       action: 'downgrade_plan',
-      reason: `Copilot Enterprise features (Workspace, custom models) are under-utilized in teams < 30. Business at $19/seat saves $${savings}/mo with near-identical day-to-day IDE capability.`,
+      reason: `Copilot Enterprise adds Workspace and custom model tuning; most teams under 50 developers don't need those features. Business at $19/seat saves $${savings}/mo with equivalent daily IDE value.`,
       suggestedPlan: 'Business',
       monthlySavings: savings,
       currentMonthlySpend: monthlySpend,
@@ -194,10 +215,36 @@ function auditGitHubCopilot(
     };
   }
 
+  if (plan === 'business' && seats === 1) {
+    return {
+      action: 'downgrade_plan',
+      reason: `Copilot Individual at $10/mo provides the same completions for a single developer; Business adds org controls that aren't needed for one seat.`,
+      suggestedPlan: 'Individual',
+      monthlySavings: 9,
+      currentMonthlySpend: monthlySpend,
+      recommendedMonthlySpend: 10,
+    };
+  }
+
+  const hasCursor = allTools.some((t) => t.tool === 'cursor');
+  if (!hasCursor && useCase === 'coding' && seats <= 10 && plan === 'business') {
+    const cursorCost = seats * 20;
+    if (cursorCost < monthlySpend) {
+      return {
+        action: 'switch_tool',
+        reason: `For ${seats}-person coding teams, Cursor Pro at $20/seat offers a stronger agentic coding workflow with similar total cost, often higher ROI than Copilot Business.`,
+        suggestedTool: 'cursor',
+        monthlySavings: monthlySpend - cursorCost,
+        currentMonthlySpend: monthlySpend,
+        recommendedMonthlySpend: cursorCost,
+      };
+    }
+  }
+
   if (useCase === 'writing' || useCase === 'research') {
     return {
       action: 'switch_tool',
-      reason: `GitHub Copilot is a specialized coding engine. For ${useCase}, Claude Pro ($20/mo) provides significantly higher value via 200k context and better prose logic.`,
+      reason: `GitHub Copilot is purely a coding assistant; for ${useCase}, Claude Pro or ChatGPT Plus delivers far better value for long-form and synthesis tasks.`,
       suggestedTool: 'claude',
       monthlySavings: Math.max(0, monthlySpend - 20),
       currentMonthlySpend: monthlySpend,
@@ -231,15 +278,29 @@ function auditClaude(
     }
   }
 
-  if (plan === 'max' && useCase !== 'research') {
-    const savings = monthlySpend - seats * 20;
+  if (plan === 'max') {
+    const proAlternative = seats * 20;
+    const savings = monthlySpend - proAlternative;
+    if (savings > 30) {
+      return {
+        action: 'downgrade_plan',
+        reason: `Claude Max ($100/seat) is justified for heavy daily usage. For most teams, Claude Pro ($20/seat) is sufficient and saves $${savings}/mo.`,
+        suggestedPlan: 'Pro',
+        monthlySavings: savings,
+        currentMonthlySpend: monthlySpend,
+        recommendedMonthlySpend: proAlternative,
+      };
+    }
+  }
+
+  if ((plan === 'pro' || plan === 'team') && useCase === 'coding') {
     return {
-      action: 'downgrade_plan',
-      reason: `Claude Max ($100/seat) is for high-volume research. For general tasks, Claude Pro ($20/seat) is sufficient, saving $${savings}/mo.`,
-      suggestedPlan: 'Pro',
-      monthlySavings: savings,
+      action: 'switch_tool',
+      reason: `Claude is strong for general AI work, but coding teams typically get more value from Cursor Pro, which wraps Claude in an IDE-native workflow.`,
+      suggestedTool: 'cursor',
+      monthlySavings: 0,
       currentMonthlySpend: monthlySpend,
-      recommendedMonthlySpend: seats * 20,
+      recommendedMonthlySpend: monthlySpend,
     };
   }
 
@@ -258,7 +319,7 @@ function auditChatGPT(
     const savings = seats * 10;
     return {
       action: 'downgrade_plan',
-      reason: `ChatGPT Team ($30/seat) adds a 2-user minimum. Solo or duo users save $10/seat by using Plus ($20/mo) with identical model access.`,
+      reason: `ChatGPT Team ($30/seat) primarily adds shared workspace. With ${seats} user(s), Plus accounts ($20/seat) provide identical model access and save $${savings}/mo.`,
       suggestedPlan: 'Plus',
       monthlySavings: savings,
       currentMonthlySpend: monthlySpend,
@@ -266,10 +327,14 @@ function auditChatGPT(
     };
   }
 
+  if (useCase === 'data' && (plan === 'plus' || plan === 'team')) {
+    return alreadyOptimal(monthlySpend);
+  }
+
   if (useCase === 'writing' && plan === 'plus') {
     return {
       action: 'switch_tool',
-      reason: `Claude 4.6 Sonnet (Pro, $20) generally outperforms GPT-5.5 on long-form stylistic writing. Same cost, better output for your use case.`,
+      reason: `For long-form writing workflows, Claude Pro ($20/seat) is often stronger on coherence and style at the same price point.`,
       suggestedTool: 'claude',
       monthlySavings: 0,
       currentMonthlySpend: monthlySpend,
@@ -288,13 +353,13 @@ function auditAnthropicAPI(
   _useCase: UseCase,
   allTools: ToolEntry[]
 ): ToolRecommendation {
-  if (plan === 'opus' && monthlySpend > 500) {
-    const estimatedSonnetCost = monthlySpend * 0.6; // Sonnet is cheaper, but Opus has had price drops
+  if (plan === 'opus' && monthlySpend > 200) {
+    const estimatedSonnetCost = monthlySpend * 0.2;
     const savings = Math.round(monthlySpend - estimatedSonnetCost);
     return {
       action: 'downgrade_plan',
-      reason: `Claude 4.7 Opus ($5/$25 MTok) is for extreme reasoning. Claude 4.6 Sonnet ($3/$15) is the 2026 industry standard for speed-to-intelligence, saving ~$${savings}/mo.`,
-      suggestedPlan: 'Claude 4.6 Sonnet',
+      reason: `Claude 3 Opus costs $15/$75 per MTok. Claude 3.5 Sonnet is priced at $3/$15 and performs better on many benchmarks, saving ~$${savings}/mo.`,
+      suggestedPlan: 'Claude 3.5 Sonnet',
       monthlySavings: savings,
       currentMonthlySpend: monthlySpend,
       recommendedMonthlySpend: estimatedSonnetCost,
@@ -306,10 +371,21 @@ function auditAnthropicAPI(
     const savings = Math.round(monthlySpend * 0.15);
     return {
       action: 'consolidate',
-      reason: `Parallel Claude/OpenAI API usage usually indicates redundant routing. Consolidating into one provider via Credex credits typical cuts spend by 15%.`,
+      reason: `Running parallel Anthropic and OpenAI API contracts often indicates redundant use cases. Consolidating to a primary provider and using credits typically cuts combined spend by 15-35%.`,
       monthlySavings: savings,
       currentMonthlySpend: monthlySpend,
       recommendedMonthlySpend: monthlySpend - savings,
+    };
+  }
+
+  if (monthlySpend > 500) {
+    const credexSavings = Math.round(monthlySpend * 0.3);
+    return {
+      action: 'use_credits',
+      reason: `At $${monthlySpend}/mo API spend, Credex credits can provide roughly 30% savings on Anthropic usage without changing models.`,
+      monthlySavings: credexSavings,
+      currentMonthlySpend: monthlySpend,
+      recommendedMonthlySpend: monthlySpend - credexSavings,
     };
   }
 
@@ -324,28 +400,39 @@ function auditOpenAIAPI(
   useCase: UseCase,
   _allTools: ToolEntry[]
 ): ToolRecommendation {
-  if (plan === 'gpt4_turbo' || plan === 'gpt4o') {
-    const savings = Math.round(monthlySpend * 0.6);
+  if (plan === 'gpt4_turbo' && monthlySpend > 100) {
+    const savings = Math.round(monthlySpend * 0.75);
     return {
       action: 'downgrade_plan',
-      reason: `GPT-4 variants are legacy in May 2026. Migrating to GPT-5.4 Mini/Standard provides better reasoning at ~40-60% lower cost per million tokens.`,
-      suggestedPlan: 'GPT-5.4 Standard',
+      reason: `GPT-4 Turbo is legacy. GPT-4o is faster and ~4x cheaper ($2.50/$10 per MTok), saving ~$${savings}/mo with no quality regression.`,
+      suggestedPlan: 'GPT-4o',
       monthlySavings: savings,
       currentMonthlySpend: monthlySpend,
       recommendedMonthlySpend: monthlySpend - savings,
     };
   }
 
-  if (plan === 'gpt5' && monthlySpend > 400 && useCase !== 'coding') {
-    const miniCost = Math.round(monthlySpend * 0.1); 
+  if (plan === 'gpt4o' && monthlySpend > 300 && useCase !== 'coding') {
+    const miniCost = Math.round(monthlySpend * 0.06);
     const savings = monthlySpend - miniCost;
     return {
       action: 'downgrade_plan',
-      reason: `GPT-5.4 Mini ($0.25/$2.00 MTok) is perfect for your ${useCase} tasks. Running a router to move simple calls to Mini saves ~$${Math.round(savings * 0.7)}/mo.`,
-      suggestedPlan: 'GPT-5.4 Mini Routing',
-      monthlySavings: Math.round(savings * 0.7),
+      reason: `GPT-4o mini handles summarization and structured tasks at ~6% of GPT-4o's cost. Routing simple calls to mini saves ~$${Math.round(savings * 0.6)}/mo conservatively.`,
+      suggestedPlan: 'GPT-4o + GPT-4o mini routing',
+      monthlySavings: Math.round(savings * 0.6),
       currentMonthlySpend: monthlySpend,
-      recommendedMonthlySpend: Math.round(monthlySpend * 0.3),
+      recommendedMonthlySpend: Math.round(monthlySpend * 0.4),
+    };
+  }
+
+  if (monthlySpend > 500) {
+    const credexSavings = Math.round(monthlySpend * 0.28);
+    return {
+      action: 'use_credits',
+      reason: `At $${monthlySpend}/mo, you're a strong candidate for OpenAI credits through Credex. Bulk credits average ~28% below pay-as-you-go.`,
+      monthlySavings: credexSavings,
+      currentMonthlySpend: monthlySpend,
+      recommendedMonthlySpend: monthlySpend - credexSavings,
     };
   }
 
@@ -369,7 +456,7 @@ function auditGemini(
     const savings = seats * 19.99;
     return {
       action: 'consolidate',
-      reason: `Google AI Premium ($19.99/seat) overlaps with your existing Claude/ChatGPT Pro sub. Consolidating saves $${Math.round(savings)}/mo.`,
+      reason: `Google AI Premium ($19.99/seat) overlaps heavily with Claude or ChatGPT you already pay for. Consolidating to one subscription removes duplicate spend.`,
       monthlySavings: Math.round(savings),
       currentMonthlySpend: monthlySpend,
       recommendedMonthlySpend: 0,
@@ -379,11 +466,24 @@ function auditGemini(
   if (plan === 'workspace' && useCase === 'coding') {
     return {
       action: 'switch_tool',
-      reason: `Gemini Workspace is for Docs/Sheets. For coding, Cursor Pro ($20/seat) or Copilot ($10/seat) has higher engineering ROI.`,
+      reason: `Gemini in Google Workspace is optimized for Docs/Sheets. For coding teams, Cursor Pro ($20/seat) delivers far higher ROI per developer.`,
       suggestedTool: 'cursor',
       monthlySavings: Math.max(0, monthlySpend - seats * 20),
       currentMonthlySpend: monthlySpend,
       recommendedMonthlySpend: seats * 20,
+    };
+  }
+
+  if (plan === 'workspace' && (useCase === 'writing' || useCase === 'research' || useCase === 'mixed')) {
+    const altCost = seats * 20;
+    const savings = Math.max(0, monthlySpend - altCost);
+    return {
+      action: 'switch_tool',
+      reason: `If your team isn't Google-first, a standalone Claude Pro or ChatGPT Plus plan at $20/seat usually delivers similar quality for ${useCase} work at a lower effective cost.`,
+      suggestedTool: 'claude',
+      monthlySavings: savings,
+      currentMonthlySpend: monthlySpend,
+      recommendedMonthlySpend: altCost,
     };
   }
 
@@ -400,14 +500,14 @@ function auditWindsurf(
   allTools: ToolEntry[]
 ): ToolRecommendation {
   if (plan === 'teams' && seats <= 3) {
-    const savings = seats * (40 - 20);
+    const savings = seats * 20;
     return {
       action: 'downgrade_plan',
-      reason: `Windsurf Teams ($40/seat) is unnecessary for small squads. Individual Pro ($20/seat) provides identical agentic capability.`,
+      reason: `Windsurf Teams ($35/seat) adds admin controls that usually matter at 5+ developers. For ${seats} users, individual Pro ($15/seat) delivers the same AI capability.`,
       suggestedPlan: 'Pro',
       monthlySavings: savings,
       currentMonthlySpend: monthlySpend,
-      recommendedMonthlySpend: seats * 20,
+      recommendedMonthlySpend: seats * 15,
     };
   }
 
@@ -415,7 +515,7 @@ function auditWindsurf(
   if (hasCursor) {
     return {
       action: 'consolidate',
-      reason: `Dual-coding AI setup (Windsurf + Cursor) is redundant. Dropping Windsurf saves $${monthlySpend}/mo with zero loss in frontier model access.`,
+      reason: `You're paying for both Windsurf and Cursor - both are AI-first IDEs with overlapping functionality. Dropping Windsurf saves $${monthlySpend}/mo.`,
       monthlySavings: monthlySpend,
       currentMonthlySpend: monthlySpend,
       recommendedMonthlySpend: 0,
