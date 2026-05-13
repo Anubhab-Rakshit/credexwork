@@ -3,7 +3,7 @@
 SpendLens is a free AI spend audit tool for startup founders and engineering leaders. It analyzes your current AI tool stack, flags plan mismatches or redundant spend, and quantifies realistic monthly + annual savings.
 
 ## Demo
-- Live URL: (add once deployed)
+- Live URL: https://credexwork.vercel.app/
 - Screenshots :
   <img width="1172" height="757" alt="image" src="https://github.com/user-attachments/assets/70740a27-e304-4c63-ae4b-216eaa44b506" />
 
