@@ -4,10 +4,13 @@ SpendLens is a free AI spend audit tool for startup founders and engineering lea
 
 ## Demo
 - Live URL: (add once deployed)
-- Screenshots (add 3+ images or a 30-second recording):
-  - /public/screenshots/1.png
-  - /public/screenshots/2.png
-  - /public/screenshots/3.png
+- Screenshots :
+  <img width="1172" height="757" alt="image" src="https://github.com/user-attachments/assets/70740a27-e304-4c63-ae4b-216eaa44b506" />
+
+  <img width="1199" height="749" alt="image" src="https://github.com/user-attachments/assets/18978ac2-ac19-4588-8c0e-df4f4f27e0d4" />
+
+  <img width="1272" height="722" alt="image" src="https://github.com/user-attachments/assets/b899ffdc-23ed-472b-a876-5cff1440fc2d" />
+
 
 ## Quick start
 ```bash
@@ -76,10 +79,10 @@ using (true);
 - `RESEND_FROM_EMAIL` (Verified Resend sender)
 
 ## Documentation
-- **[PROMPTS.md](file:///Users/anubhabrakshit/Projects/Intern/credexwork/PROMPTS.md)**: Full LLM prompts, rationale, and failure cases.
-- **[GTM.md](file:///Users/anubhabrakshit/Projects/Intern/credexwork/GTM.md)**: Go-To-Market strategy, target personas, and distribution channels.
-- **[ECONOMICS.md](file:///Users/anubhabrakshit/Projects/Intern/credexwork/ECONOMICS.md)**: Unit economics, lead valuation, and the path to $1M ARR.
-- **[ARCHITECTURE.md](file:///Users/anubhabrakshit/Projects/Intern/credexwork/ARCHITECTURE.md)**: Technical architecture and data flow.
-- **[REFLECTION.md](file:///Users/anubhabrakshit/Projects/Intern/credexwork/REFLECTION.md)**: Weekly project reflection and self-ratings.
-- **[DEVLOG.md](file:///Users/anubhabrakshit/Projects/Intern/credexwork/DEVLOG.md)**: Daily progress and learning logs.
-- **[PRICING_DATA.md](file:///Users/anubhabrakshit/Projects/Intern/credexwork/PRICING_DATA.md)**: Verified 2026 pricing benchmarks for the audit engine.
+- **[PROMPTS.md]**: Full LLM prompts, rationale, and failure cases.
+- **[GTM.md]**: Go-To-Market strategy, target personas, and distribution channels.
+- **[ECONOMICS.md]**: Unit economics, lead valuation, and the path to $1M ARR.
+- **[ARCHITECTURE.md]**: Technical architecture and data flow.
+- **[REFLECTION.md]**: Weekly project reflection and self-ratings.
+- **[DEVLOG.md]**: Daily progress and learning logs.
+- **[PRICING_DATA.md]**: Verified 2026 pricing benchmarks for the audit engine.
